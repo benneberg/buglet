@@ -461,4 +461,4 @@ Contributions welcome! Please read CONTRIBUTING.md for guidelines.
 - Discord: Join the community (coming soon)
 \`\`\`
 
-```tsx file="" isHidden
+\`\`\`tsx file="" isHidden
