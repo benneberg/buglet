@@ -3,6 +3,8 @@
 import { CardFooter } from "@/components/ui/card"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 import { CommandPalette } from "@/components/command-palette"
+import { TelemetryViewer } from "@/components/telemetry-viewer"
+import { TelemetrySettings } from "@/components/telemetry-settings"
 
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,9 +43,12 @@ import {
   Loader2,
   RefreshCw,
   Shield,
+  Copy,
+  Download,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from "@/components/ui/textarea"
+import { SectionErrorBoundary } from "@/components/error-boundary" // Added error boundary component
 
 interface ChatMessage {
   id: string
@@ -131,6 +136,68 @@ interface RegressionAlert {
   threshold: number
   severity: "warning" | "critical"
   message: string
+}
+
+// Telemetry Data Bridge interfaces
+interface TelemetrySession {
+  id: string
+  startTime: number
+  endTime?: number
+  deviceInfo: {
+    userAgent: string
+    platform: string
+    screenResolution: string
+    viewport: string
+  }
+  appInfo: {
+    url: string
+    version?: string
+    environment?: string
+  }
+  snippetId?: string
+}
+
+interface TelemetryDataPoint {
+  id: string
+  sessionId: string
+  timestamp: number
+  type: "memory" | "fps" | "network" | "video" | "error" | "custom"
+  data: any
+  tags?: Record<string, string>
+}
+
+interface TelemetryCollectionSettings {
+  enabled: boolean
+  collectionMode: "push" | "pull" | "live"
+  batchSize: number
+  flushInterval: number // milliseconds
+  endpoint?: string
+  retryAttempts: number
+  persistOffline: boolean
+}
+
+interface BlackboxRecording {
+  id: string
+  sessionId: string
+  startTime: number
+  endTime?: number
+  crashDetected: boolean
+  dataPoints: TelemetryDataPoint[]
+  ringBufferSize: number
+  metadata: {
+    snippetId?: string
+    description?: string
+    tags?: string[]
+  }
+}
+
+interface TelemetryFilter {
+  sessionIds?: string[]
+  types?: string[]
+  startTime?: number
+  endTime?: number
+  tags?: Record<string, string>
+  searchQuery?: string
 }
 
 const TELEMETRY_TEMPLATES = {
@@ -915,7 +982,7 @@ async function sendToEndpoint(logType, data) {
     // It looks for console.log statements directly logging 'data'.
     return (
       endpointInjection +
-      code.replace(/console\.log\s*$$\s*['"]\[BlackBox.*?\]['"]\s*,\s*data\s*$$\s*;/g, (match) => {
+      code.replace(/console\.log\s*['"]\[BlackBox.*?\]['"]\s*,\s*data\s*;/g, (match) => {
         // Attempt to infer log type from the template's console message prefix
         let inferredLogType = "general" // Default
         if (code.includes("[BlackBox Memory]")) {
@@ -2618,7 +2685,7 @@ Return ONLY valid JavaScript code, no markdown formatting or explanations outsid
     try {
       const prompt = `Compare the telemetry data before and after applying a code fix. Determine if the fix improved the situation.
 
-${anomaly ? `Target Issue: ${anomaly.title} - ${anomaly.description}\n\n` : ""}Telemetry Before Fix:
+${anomaly ? `Anomaly Detected:\nType: ${anomaly.type}\nSeverity: ${anomaly.severity}\nTitle: ${anomaly.title}\nDescription: ${anomaly.description}\n\n` : ""}Telemetry Before Fix:
 ${JSON.stringify(before, null, 2)}
 
 Telemetry After Fix:
@@ -2979,26 +3046,28 @@ Be specific about which metrics changed and by how much.`
       <PWAInstallPrompt />
 
       {/* COMMAND PALETTE COMPONENT */}
-      <CommandPalette
-        onNavigate={setActiveTab}
-        onToggleDarkMode={toggleDarkMode}
-        onToggleRadar={() => setRadarEnabled(!radarEnabled)}
-        onClearLogs={handleClearAllLogs}
-        onGenerateSnippet={generateSnippet}
-        onCopyCurrentSnippet={() => currentSnippet && copyToClipboard(currentSnippet.code)}
-        onExportCurrentSnippet={() => currentSnippet && exportSnippet(currentSnippet)}
-        onAnalyzeLogs={() => currentSnippet && analyzeLogs(currentSnippet)}
-        onAttemptFix={() => generateCodeFix()}
-        onOpenFAQ={() => setIsFaqOpen(true)}
-        // Regression Guard Commands
-        onToggleRegressionGuard={() => setRegressionGuardEnabled(!regressionGuardEnabled)}
-        onCaptureBaseline={() => currentSnippet?.id && captureBaseline(currentSnippet.id)}
-        onCheckRegressions={() => currentSnippet?.id && checkForRegressions(currentSnippet.id)}
-        currentSnippet={currentSnippet}
-        darkMode={settings.darkMode}
-        radarEnabled={radarEnabled}
-        regressionGuardEnabled={regressionGuardEnabled} // Pass regression guard state to CommandPalette
-      />
+      <SectionErrorBoundary sectionName="Command Palette">
+        <CommandPalette
+          onNavigate={setActiveTab}
+          onToggleDarkMode={toggleDarkMode}
+          onToggleRadar={() => setRadarEnabled(!radarEnabled)}
+          onClearLogs={handleClearAllLogs}
+          onGenerateSnippet={generateSnippet}
+          onCopyCurrentSnippet={() => currentSnippet && copyToClipboard(currentSnippet.code)}
+          onExportCurrentSnippet={() => currentSnippet && exportSnippet(currentSnippet)}
+          onAnalyzeLogs={() => currentSnippet && analyzeLogs(currentSnippet)}
+          onAttemptFix={() => generateCodeFix()}
+          onOpenFAQ={() => setIsFaqOpen(true)}
+          // Regression Guard Commands
+          onToggleRegressionGuard={() => setRegressionGuardEnabled(!regressionGuardEnabled)}
+          onCaptureBaseline={() => currentSnippet?.id && captureBaseline(currentSnippet.id)}
+          onCheckRegressions={() => currentSnippet?.id && checkForRegressions(currentSnippet.id)}
+          currentSnippet={currentSnippet}
+          darkMode={settings.darkMode}
+          radarEnabled={radarEnabled}
+          regressionGuardEnabled={regressionGuardEnabled} // Pass regression guard state to CommandPalette
+        />
+      </SectionErrorBoundary>
 
       {/* Header */}
       <header className="border-b border-border bg-card">
@@ -3423,7 +3492,7 @@ observer.observe(document.body, {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-8">
         {showAnomalyPanel && activeAnomalies.length > 0 && (
           <Card className="mb-6 border-2 border-orange-500/50">
             <CardHeader>
@@ -3606,434 +3675,464 @@ observer.observe(document.body, {
 
           {/* Generate Tab */}
           <TabsContent value="generate" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Generate Debugging Snippet</CardTitle>
-                <CardDescription>Describe the bug or issue you're facing.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-4">
-                  <Textarea
-                    placeholder="e.g., My application crashes intermittently on the checkout page, possibly due to a memory leak or race condition."
-                    value={bugDescription}
-                    onChange={(e) => setBugDescription(e.target.value)}
-                    className="min-h-[120px]"
-                  />
-                  <Button
-                    onClick={generateSnippet}
-                    disabled={isGenerating || !bugDescription.trim() || !settings.apiKey}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4 mr-2" />
-                    )}
-                    Generate Snippet
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {currentSnippet && (
+            <SectionErrorBoundary sectionName="Generate Tab">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <CardTitle>{currentSnippet.title}</CardTitle>
-                      <CardDescription>Instructions and generated code for debugging.</CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      {/* Baseline Capture Button */}
-                      <Button variant="outline" size="sm" onClick={() => captureBaseline(currentSnippet.id)}>
-                        <Shield className="h-4 w-4 mr-1" />
-                        Set Baseline
-                      </Button>
-                      <Button onClick={() => copyToClipboard(currentSnippet.code)}>Copy Code</Button>
-                      <Button onClick={() => exportSnippet(currentSnippet)} variant="outline">
-                        Export as JS
-                      </Button>
-                      <Button onClick={() => executeInSandbox(currentSnippet.code)} variant="secondary">
-                        Run in Sandbox
-                      </Button>
-                      <Button onClick={() => analyzeLogs(currentSnippet)} disabled={isAnalyzing} variant="outline">
-                        {isAnalyzing ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Activity className="w-4 h-4 mr-2" />
-                        )}
-                        Analyze Logs
-                      </Button>
-                      {/* Button to trigger code fix generation */}
-                      <Button onClick={() => generateCodeFix()} disabled={isGeneratingFix}>
-                        {isGeneratingFix ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                        )}
-                        Attempt Fix
-                      </Button>
-                    </div>
-                  </div>
+                  <CardTitle>Generate Debugging Snippet</CardTitle>
+                  <CardDescription>Describe the bug or issue you're facing.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2">Instructions:</h4>
-                      <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-                        {currentSnippet.instructions.map((step, index) => (
-                          <li key={index}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2">Debugging Code:</h4>
-                      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                        <code className="language-javascript">{currentSnippet.code}</code>
-                      </pre>
-                    </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <Textarea
+                      placeholder="e.g., My application crashes intermittently on the checkout page, possibly due to a memory leak or race condition."
+                      value={bugDescription}
+                      onChange={(e) => setBugDescription(e.target.value)}
+                      className="min-h-[120px]"
+                    />
+                    <Button
+                      onClick={generateSnippet}
+                      disabled={isGenerating || !bugDescription.trim() || !settings.apiKey}
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 mr-2" />
+                      )}
+                      Generate Snippet
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-            )}
+
+              {currentSnippet && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <CardTitle>{currentSnippet.title}</CardTitle>
+                        <CardDescription>Instructions and generated code for debugging.</CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        {/* Baseline Capture Button */}
+                        <Button variant="outline" size="sm" onClick={() => captureBaseline(currentSnippet.id)}>
+                          <Shield className="h-4 w-4 mr-1" />
+                          Set Baseline
+                        </Button>
+                        <Button onClick={() => copyToClipboard(currentSnippet.code)}>
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy Code
+                        </Button>
+                        <Button onClick={() => exportSnippet(currentSnippet)} variant="outline">
+                          <Download className="w-4 h-4 mr-1" />
+                          Export as JS
+                        </Button>
+                        <Button onClick={() => executeInSandbox(currentSnippet.code)} variant="secondary">
+                          Run in Sandbox
+                        </Button>
+                        <Button onClick={() => analyzeLogs(currentSnippet)} disabled={isAnalyzing} variant="outline">
+                          {isAnalyzing ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Activity className="w-4 h-4 mr-2" />
+                          )}
+                          Analyze Logs
+                        </Button>
+                        {/* Button to trigger code fix generation */}
+                        <Button onClick={() => generateCodeFix()} disabled={isGeneratingFix}>
+                          {isGeneratingFix ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                          )}
+                          Attempt Fix
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Instructions:</h4>
+                        <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+                          {currentSnippet.instructions.map((step, index) => (
+                            <li key={index}>{step}</li>
+                          ))}
+                        </ol>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Debugging Code:</h4>
+                        <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                          <code className="language-javascript">{currentSnippet.code}</code>
+                        </pre>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </SectionErrorBoundary>
           </TabsContent>
 
           {/* Chat Tab */}
           <TabsContent value="chat" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>AI Debugging Assistant</span>
-                  <Button variant="outline" size="sm" onClick={clearChatHistory} disabled={chatMessages.length === 0}>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    New Thread
-                  </Button>
-                </CardTitle>
-                <CardDescription>
-                  Discuss bugs, get debugging suggestions, and explore advanced approaches with AI
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Chat Messages */}
-                <div
-                  ref={chatScrollRef}
-                  className="h-[500px] overflow-y-auto border border-border rounded-lg p-4 space-y-4 bg-muted/20"
-                >
-                  {chatMessages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-                      <MessageCircle className="w-16 h-16 mb-4 opacity-50" />
-                      <h3 className="text-lg font-semibold mb-2">Start a Debugging Conversation</h3>
-                      <p className="text-sm max-w-md">
-                        Ask questions about your bugs, discuss telemetry data, or get suggestions for advanced debugging
-                        techniques. The AI can analyze your snippets and telemetry to provide targeted advice.
-                      </p>
-                      <div className="mt-6 grid grid-cols-1 gap-2 w-full max-w-md">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setChatInput("How can I debug a memory leak in my application?")}
-                        >
-                          How can I debug a memory leak?
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setChatInput("What's causing the FPS drops shown in my telemetry data?")}
-                        >
-                          Analyze my FPS drops
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setChatInput("Suggest alternative debugging approaches for intermittent bugs")}
-                        >
-                          Help with intermittent bugs
-                        </Button>
+            <SectionErrorBoundary sectionName="Chat Interface">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>AI Debugging Assistant</span>
+                    <Button variant="outline" size="sm" onClick={clearChatHistory} disabled={chatMessages.length === 0}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      New Thread
+                    </Button>
+                  </CardTitle>
+                  <CardDescription>
+                    Discuss bugs, get debugging suggestions, and explore advanced approaches with AI
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Chat Messages */}
+                  <div
+                    ref={chatScrollRef}
+                    className="h-[500px] overflow-y-auto border border-border rounded-lg p-4 space-y-4 bg-muted/20"
+                  >
+                    {chatMessages.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
+                        <MessageCircle className="w-16 h-16 mb-4 opacity-50" />
+                        <h3 className="text-lg font-semibold mb-2">Start a Debugging Conversation</h3>
+                        <p className="text-sm max-w-md">
+                          Ask questions about your bugs, discuss telemetry data, or get suggestions for advanced
+                          debugging techniques. The AI can analyze your snippets and telemetry to provide targeted
+                          advice.
+                        </p>
+                        <div className="mt-6 grid grid-cols-1 gap-2 w-full max-w-md">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setChatInput("How can I debug a memory leak in my application?")}
+                          >
+                            How can I debug a memory leak?
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setChatInput("What's causing the FPS drops shown in my telemetry data?")}
+                          >
+                            Analyze my FPS drops
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setChatInput("Suggest alternative debugging approaches for intermittent bugs")
+                            }
+                          >
+                            Help with intermittent bugs
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    chatMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                      >
+                    ) : (
+                      chatMessages.map((message) => (
                         <div
-                          className={`max-w-[80%] rounded-lg p-4 ${
-                            message.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-card border border-border"
-                          }`}
+                          key={message.id}
+                          className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                         >
-                          <div className="flex items-start gap-3">
-                            {message.role === "assistant" && (
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                <Sparkles className="w-4 h-4 text-primary" />
+                          <div
+                            className={`max-w-[80%] rounded-lg p-4 ${
+                              message.role === "user"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-card border border-border"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {message.role === "assistant" && (
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <Sparkles className="w-4 h-4 text-primary" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
+                                <div
+                                  className={`text-xs mt-2 ${
+                                    message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {new Date(message.timestamp).toLocaleTimeString()}
+                                </div>
                               </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
-                              <div
-                                className={`text-xs mt-2 ${
-                                  message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                                }`}
-                              >
-                                {new Date(message.timestamp).toLocaleTimeString()}
-                              </div>
+                              {message.role === "user" && (
+                                <div className="w-8 h-8 rounded-full bg-primary-foreground/10 flex items-center justify-center flex-shrink-0">
+                                  <User className="w-4 h-4" />
+                                </div>
+                              )}
                             </div>
-                            {message.role === "user" && (
-                              <div className="w-8 h-8 rounded-full bg-primary-foreground/10 flex items-center justify-center flex-shrink-0">
-                                <User className="w-4 h-4" />
-                              </div>
-                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {isChatSending && (
+                      <div className="flex justify-start">
+                        <div className="max-w-[80%] rounded-lg p-4 bg-card border border-border">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                            </div>
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                              <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
+                              <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
+                            </div>
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                  {isChatSending && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[80%] rounded-lg p-4 bg-card border border-border">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                          </div>
-                          <div className="flex gap-1">
-                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
-                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
-                          </div>
-                        </div>
-                      </div>
+                    )}
+                  </div>
+
+                  {/* Context Options */}
+                  <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="includeSnippet"
+                        checked={includeSnippet}
+                        onChange={(e) => setIncludeSnippet(e.target.checked)}
+                        className="w-4 h-4 rounded border-border"
+                      />
+                      <label htmlFor="includeSnippet" className="text-sm cursor-pointer">
+                        Include latest snippet
+                      </label>
                     </div>
-                  )}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="includeTelemetry"
+                        checked={includeTelemetry}
+                        onChange={(e) => setIncludeTelemetry(e.target.checked)}
+                        className="w-4 h-4 rounded border-border"
+                      />
+                      <label htmlFor="includeTelemetry" className="text-sm cursor-pointer">
+                        Include telemetry data
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="enableWebSearch"
+                        checked={enableWebSearch}
+                        onChange={(e) => setEnableWebSearch(e.target.checked)}
+                        className="w-4 h-4 rounded border-border"
+                        disabled={!settings.tavilyApiKey}
+                      />
+                      <label
+                        htmlFor="enableWebSearch"
+                        className={`text-sm cursor-pointer ${!settings.tavilyApiKey ? "opacity-50" : ""}`}
+                      >
+                        Enable web search {!settings.tavilyApiKey && "(Tavily API key required)"}
+                      </label>
+                    </div>
+                    {(includeSnippet || includeTelemetry || enableWebSearch) && (
+                      <Badge variant="secondary" className="text-xs">
+                        Enhanced context enabled
+                      </Badge>
+                    )}
+                  </div>
 
-                {/* Context Options */}
-                <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="includeSnippet"
-                      checked={includeSnippet}
-                      onChange={(e) => setIncludeSnippet(e.target.checked)}
-                      className="w-4 h-4 rounded border-border"
-                    />
-                    <label htmlFor="includeSnippet" className="text-sm cursor-pointer">
-                      Include latest snippet
-                    </label>
+                  <div className="text-xs text-muted-foreground">
+                    <strong>Tip:</strong> Enable context options above to give the AI access to your latest debugging
+                    data
+                    {settings.tavilyApiKey ? " and real-time web search results" : ""}. Press Shift+Enter for new line,
+                    Enter to send.
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="includeTelemetry"
-                      checked={includeTelemetry}
-                      onChange={(e) => setIncludeTelemetry(e.target.checked)}
-                      className="w-4 h-4 rounded border-border"
-                    />
-                    <label htmlFor="includeTelemetry" className="text-sm cursor-pointer">
-                      Include telemetry data
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="enableWebSearch"
-                      checked={enableWebSearch}
-                      onChange={(e) => setEnableWebSearch(e.target.checked)}
-                      className="w-4 h-4 rounded border-border"
-                      disabled={!settings.tavilyApiKey}
-                    />
-                    <label
-                      htmlFor="enableWebSearch"
-                      className={`text-sm cursor-pointer ${!settings.tavilyApiKey ? "opacity-50" : ""}`}
-                    >
-                      Enable web search {!settings.tavilyApiKey && "(Tavily API key required)"}
-                    </label>
-                  </div>
-                  {(includeSnippet || includeTelemetry || enableWebSearch) && (
-                    <Badge variant="secondary" className="text-xs">
-                      Enhanced context enabled
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  <strong>Tip:</strong> Enable context options above to give the AI access to your latest debugging data
-                  {settings.tavilyApiKey ? " and real-time web search results" : ""}. Press Shift+Enter for new line,
-                  Enter to send.
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </SectionErrorBoundary>
           </TabsContent>
 
           {/* Marketplace Tab */}
           <TabsContent value="marketplace" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Probe Marketplace</CardTitle>
-                    <CardDescription>Browse and install community-contributed debugging probes</CardDescription>
-                  </div>
-                  <Button onClick={fetchMarketplaceProbes} disabled={isLoadingMarketplace}>
-                    {isLoadingMarketplace ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Activity className="w-4 h-4 mr-2" />
-                    )}
-                    {marketplaceProbes.length === 0 ? "Load Probes" : "Refresh"}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {marketplaceProbes.length > 0 && (
-                  <div className="mb-6">
-                    <div className="flex gap-2 flex-wrap">
-                      {categories.map((category) => (
-                        <Button
-                          key={category}
-                          variant={marketplaceFilter === category ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setMarketplaceFilter(category)}
-                          className="capitalize"
-                        >
-                          {category}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {marketplaceProbes.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Database className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-semibold mb-2">No Probes Loaded</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Click "Load Probes" to browse community debugging probes
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredMarketplaceProbes.map((probe) => {
-                      const isInstalled = installedProbes.includes(probe.name)
-                      return (
-                        <Card key={probe.name} className="flex flex-col">
-                          <CardHeader>
-                            <div className="flex items-start justify-between mb-2">
-                              <CardTitle className="text-base">{probe.name}</CardTitle>
-                              <Badge variant="secondary" className="text-xs">
-                                {probe.category}
-                              </Badge>
-                            </div>
-                            <CardDescription className="text-sm">{probe.description}</CardDescription>
-                          </CardHeader>
-                          <CardContent className="flex-grow">
-                            <div className="space-y-2 text-sm text-muted-foreground">
-                              <div className="flex items-center justify-between">
-                                <span>Version: {probe.version}</span>
-                                <span>By {probe.author}</span>
-                              </div>
-                              {probe.downloads && (
-                                <div className="flex items-center justify-between">
-                                  <span>{probe.downloads.toLocaleString()} downloads</span>
-                                  {probe.rating && <span>★ {probe.rating}/5</span>}
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                          <CardFooter className="mt-auto flex gap-2">
-                            {isInstalled ? (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex-1 bg-transparent"
-                                  onClick={() => copyToClipboard(probe.code)}
-                                >
-                                  Copy Code
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={() => uninstallProbe(probe.name)}>
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <Button className="w-full" size="sm" onClick={() => installProbe(probe)}>
-                                Install
-                              </Button>
-                            )}
-                          </CardFooter>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {installedProbes.length > 0 && (
+            <SectionErrorBoundary sectionName="Marketplace">
               <Card>
                 <CardHeader>
-                  <CardTitle>Installed Probes ({installedProbes.length})</CardTitle>
-                  <CardDescription>Probes you've installed from the marketplace</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Probe Marketplace</CardTitle>
+                      <CardDescription>Browse and install community-contributed debugging probes</CardDescription>
+                    </div>
+                    <Button onClick={fetchMarketplaceProbes} disabled={isLoadingMarketplace}>
+                      {isLoadingMarketplace ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Activity className="w-4 h-4 mr-2" />
+                      )}
+                      {marketplaceProbes.length === 0 ? "Load Probes" : "Refresh"}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {installedProbes.map((probeName) => (
-                      <Badge key={probeName} variant="secondary" className="px-3 py-1">
-                        {probeName}
-                      </Badge>
-                    ))}
-                  </div>
+                  {marketplaceProbes.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex gap-2 flex-wrap">
+                        {categories.map((category) => (
+                          <Button
+                            key={category}
+                            variant={marketplaceFilter === category ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setMarketplaceFilter(category)}
+                            className="capitalize"
+                          >
+                            {category}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {marketplaceProbes.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Database className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <h3 className="text-lg font-semibold mb-2">No Probes Loaded</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Click "Load Probes" to browse community debugging probes
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredMarketplaceProbes.map((probe) => {
+                        const isInstalled = installedProbes.includes(probe.name)
+                        return (
+                          <Card key={probe.name} className="flex flex-col">
+                            <CardHeader>
+                              <div className="flex items-start justify-between mb-2">
+                                <CardTitle className="text-base">{probe.name}</CardTitle>
+                                <Badge variant="secondary" className="text-xs">
+                                  {probe.category}
+                                </Badge>
+                              </div>
+                              <CardDescription className="text-sm">{probe.description}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-grow">
+                              <div className="space-y-2 text-sm text-muted-foreground">
+                                <div className="flex items-center justify-between">
+                                  <span>Version: {probe.version}</span>
+                                  <span>By {probe.author}</span>
+                                </div>
+                                {probe.downloads && (
+                                  <div className="flex items-center justify-between">
+                                    <span>{probe.downloads.toLocaleString()} downloads</span>
+                                    {probe.rating && <span>★ {probe.rating}/5</span>}
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                            <CardFooter className="mt-auto flex gap-2">
+                              {isInstalled ? (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 bg-transparent"
+                                    onClick={() => copyToClipboard(probe.code)}
+                                  >
+                                    Copy Code
+                                  </Button>
+                                  <Button variant="destructive" size="sm" onClick={() => uninstallProbe(probe.name)}>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button className="w-full" size="sm" onClick={() => installProbe(probe)}>
+                                  Install
+                                </Button>
+                              )}
+                            </CardFooter>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            )}
+
+              {installedProbes.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Installed Probes ({installedProbes.length})</CardTitle>
+                    <CardDescription>Probes you've installed from the marketplace</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {installedProbes.map((probeName) => (
+                        <Badge key={probeName} variant="secondary" className="px-3 py-1">
+                          {probeName}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </SectionErrorBoundary>
           </TabsContent>
 
           {/* Templates Tab */}
           <TabsContent value="templates" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Telemetry Templates</CardTitle>
-                <CardDescription>
-                  Pre-built JavaScript snippets for monitoring common performance and error indicators.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Object.entries(TELEMETRY_TEMPLATES).map(([key, code]) => (
-                    <Card key={key} className="flex flex-col">
-                      <CardHeader>
-                        <CardTitle className="capitalize">{key}</CardTitle>
-                        <CardDescription>
-                          {key === "memory" && "Monitors JavaScript heap usage."}
-                          {key === "fps" && "Tracks frames per second and rendering performance."}
-                          {key === "network" && "Logs fetch and XMLHttpRequest calls."}
-                          {key === "video" && "Monitors video playback events and states."}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="flex-grow">
-                        <pre className="text-sm overflow-hidden h-full whitespace-pre-wrap">
-                          {code.trim().split("\n").slice(0, 8).join("\n")}...
-                        </pre>
-                      </CardContent>
-                      <CardFooter className="mt-auto">
-                        <Button onClick={() => copyTemplate(key)} className="w-full">
-                          Copy Code
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <SectionErrorBoundary sectionName="Templates">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Telemetry Templates</CardTitle>
+                  <CardDescription>
+                    Pre-built JavaScript snippets for monitoring common performance and error indicators.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(TELEMETRY_TEMPLATES).map(([key, code]) => (
+                      <Card key={key} className="flex flex-col">
+                        <CardHeader>
+                          <CardTitle className="capitalize">{key}</CardTitle>
+                          <CardDescription>
+                            {key === "memory" && "Monitors JavaScript heap usage."}
+                            {key === "fps" && "Tracks frames per second and rendering performance."}
+                            {key === "network" && "Logs fetch and XMLHttpRequest calls."}
+                            {key === "video" && "Monitors video playback events and states."}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex-grow">
+                          <pre className="text-sm overflow-hidden h-full whitespace-pre-wrap">
+                            {code.trim().split("\n").slice(0, 8).join("\n")}...
+                          </pre>
+                        </CardContent>
+                        <CardFooter className="mt-auto">
+                          <Button onClick={() => copyTemplate(key)} className="w-full">
+                            <Copy className="w-4 h-4 mr-1" />
+                            Copy Code
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </SectionErrorBoundary>
           </TabsContent>
 
           {/* Logs Tab */}
           <TabsContent value="logs" className="space-y-4">
+            <SectionErrorBoundary sectionName="Telemetry Viewer">
+              <TelemetryViewer
+                snippetId={currentSnippet?.id}
+                onExport={(data) => {
+                  toast({
+                    title: "Data Exported",
+                    description: "Telemetry data has been exported successfully.",
+                  })
+                }}
+              />
+            </SectionErrorBoundary>
+
+            {/* Legacy localStorage logs - kept for backward compatibility */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Stored Telemetry Logs</CardTitle>
+                    <CardTitle>Legacy Telemetry Logs</CardTitle>
                     <CardDescription>
                       View data collected by active telemetry probes. This data persists across sessions.
                     </CardDescription>
@@ -4097,180 +4196,163 @@ observer.observe(document.body, {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>API & Model Settings</CardTitle>
-                <CardDescription>Configure your AI provider and API key.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="provider" className="block text-sm font-medium mb-1">
-                      AI Provider
-                    </label>
-                    <select
-                      id="provider"
-                      value={settings.provider}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, provider: e.target.value as AppSettings["provider"] }))
-                      }
-                      className="w-full p-2 border rounded-md bg-background"
-                    >
-                      <option value="groq">Groq</option>
-                      <option value="openai">OpenAI</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="model" className="block text-sm font-medium mb-1">
-                      Model
-                    </label>
-                    <div className="flex gap-2">
+            <SectionErrorBoundary sectionName="Settings">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API & Model Settings</CardTitle>
+                  <CardDescription>Configure your AI provider and API key.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="provider" className="block text-sm font-medium mb-1">
+                        AI Provider
+                      </label>
                       <select
-                        id="model"
-                        value={settings.model}
-                        onChange={(e) => setSettings((prev) => ({ ...prev, model: e.target.value }))}
-                        className="flex-1 p-2 border rounded-md bg-background"
-                        disabled={isFetchingModels || availableModels.length === 0}
+                        id="provider"
+                        value={settings.provider}
+                        onChange={(e) =>
+                          setSettings((prev) => ({ ...prev, provider: e.target.value as AppSettings["provider"] }))
+                        }
+                        className="w-full p-2 border rounded-md bg-background"
                       >
-                        {isFetchingModels && <option disabled>Loading models...</option>}
-                        {!isFetchingModels && availableModels.length === 0 && <option disabled>No models found</option>}
-                        {availableModels.map((model) => (
-                          <option key={model} value={model}>
-                            {model}
-                          </option>
-                        ))}
+                        <option value="groq">Groq</option>
+                        <option value="openai">OpenAI</option>
                       </select>
-                      <Button onClick={fetchModels} disabled={isFetchingModels || !settings.apiKey}>
-                        {isFetchingModels ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Activity className="w-4 h-4" />
-                        )}
-                      </Button>
+                    </div>
+                    <div>
+                      <label htmlFor="model" className="block text-sm font-medium mb-1">
+                        Model
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          id="model"
+                          value={settings.model}
+                          onChange={(e) => setSettings((prev) => ({ ...prev, model: e.target.value }))}
+                          className="flex-1 p-2 border rounded-md bg-background"
+                          disabled={isFetchingModels || availableModels.length === 0}
+                        >
+                          {isFetchingModels && <option disabled>Loading models...</option>}
+                          {!isFetchingModels && availableModels.length === 0 && (
+                            <option disabled>No models found</option>
+                          )}
+                          {availableModels.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                        </select>
+                        <Button onClick={fetchModels} disabled={isFetchingModels || !settings.apiKey}>
+                          {isFetchingModels ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Activity className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label htmlFor="apiKey" className="block text-sm font-medium mb-1">
+                        API Key
+                      </label>
+                      <input
+                        type="password"
+                        id="apiKey"
+                        value={settings.apiKey}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, apiKey: e.target.value }))}
+                        placeholder="Enter your API key"
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label htmlFor="tavilyApiKey" className="block text-sm font-medium mb-1">
+                        Tavily API Key (Optional for Web Search)
+                      </label>
+                      <input
+                        type="password"
+                        id="tavilyApiKey"
+                        value={settings.tavilyApiKey}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, tavilyApiKey: e.target.value }))}
+                        placeholder="Enter your Tavily API key"
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="temperature" className="block text-sm font-medium mb-1">
+                        Temperature
+                      </label>
+                      <input
+                        type="number"
+                        id="temperature"
+                        step="0.1"
+                        min="0"
+                        max="1"
+                        value={settings.temperature}
+                        onChange={(e) =>
+                          setSettings((prev) => ({ ...prev, temperature: Number.parseFloat(e.target.value) }))
+                        }
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="maxTokens" className="block text-sm font-medium mb-1">
+                        Max Tokens
+                      </label>
+                      <input
+                        type="number"
+                        id="maxTokens"
+                        min="100"
+                        value={settings.maxTokens}
+                        onChange={(e) =>
+                          setSettings((prev) => ({ ...prev, maxTokens: Number.parseInt(e.target.value) }))
+                        }
+                        className="w-full p-2 border rounded-md bg-background"
+                      />
                     </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <label htmlFor="apiKey" className="block text-sm font-medium mb-1">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      id="apiKey"
-                      value={settings.apiKey}
-                      onChange={(e) => setSettings((prev) => ({ ...prev, apiKey: e.target.value }))}
-                      placeholder="Enter your API key"
-                      className="w-full p-2 border rounded-md bg-background"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label htmlFor="tavilyApiKey" className="block text-sm font-medium mb-1">
-                      Tavily API Key (Optional for Web Search)
-                    </label>
-                    <input
-                      type="password"
-                      id="tavilyApiKey"
-                      value={settings.tavilyApiKey}
-                      onChange={(e) => setSettings((prev) => ({ ...prev, tavilyApiKey: e.target.value }))}
-                      placeholder="Enter your Tavily API key"
-                      className="w-full p-2 border rounded-md bg-background"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="temperature" className="block text-sm font-medium mb-1">
-                      Temperature
-                    </label>
-                    <input
-                      type="number"
-                      id="temperature"
-                      step="0.1"
-                      min="0"
-                      max="1"
-                      value={settings.temperature}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, temperature: Number.parseFloat(e.target.value) }))
-                      }
-                      className="w-full p-2 border rounded-md bg-background"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="maxTokens" className="block text-sm font-medium mb-1">
-                      Max Tokens
-                    </label>
-                    <input
-                      type="number"
-                      id="maxTokens"
-                      min="100"
-                      value={settings.maxTokens}
-                      onChange={(e) => setSettings((prev) => ({ ...prev, maxTokens: Number.parseInt(e.target.value) }))}
-                      className="w-full p-2 border rounded-md bg-background"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Telemetry Configuration</CardTitle>
-                <CardDescription>Settings for data persistence and collection.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label htmlFor="loggingEndpoint" className="block text-sm font-medium mb-1">
-                      Logging Endpoint (Optional)
-                    </label>
-                    <input
-                      type="url"
-                      id="loggingEndpoint"
-                      value={loggingEndpoint}
-                      onChange={(e) => setLoggingEndpoint(e.target.value)}
-                      placeholder="https://your-log-collector.com/api/log"
-                      className="w-full p-2 border rounded-md bg-background"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      If provided, telemetry logs will also be sent to this endpoint.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <TelemetrySettings />
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Appearance</CardTitle>
-                <CardDescription>Customize the application's look and feel.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <label htmlFor="darkModeToggle" className="text-sm font-medium">
-                    Dark Mode
-                  </label>
-                  <Button
-                    id="darkModeToggle"
-                    variant="outline"
-                    size="icon"
-                    onClick={toggleDarkMode}
-                    aria-label="Toggle Dark Mode"
-                  >
-                    {settings.darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Appearance</CardTitle>
+                  <CardDescription>Customize the application's look and feel.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <label htmlFor="darkModeToggle" className="text-sm font-medium">
+                      Dark Mode
+                    </label>
+                    <Button
+                      id="darkModeToggle"
+                      variant="outline"
+                      size="icon"
+                      onClick={toggleDarkMode}
+                      aria-label="Toggle Dark Mode"
+                    >
+                      {settings.darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </SectionErrorBoundary>
           </TabsContent>
         </Tabs>
 
         {/* Sandbox */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Sandbox Execution Environment</CardTitle>
-            <CardDescription>Execute generated snippets safely in an isolated environment.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <iframe ref={sandboxRef} className="w-full h-[300px] border rounded-md" title="Sandbox" />
-          </CardContent>
-        </Card>
+        <SectionErrorBoundary sectionName="Sandbox">
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Sandbox Execution Environment</CardTitle>
+              <CardDescription>Execute generated snippets safely in an isolated environment.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <iframe ref={sandboxRef} className="w-full h-[300px] border rounded-md" title="Sandbox" />
+            </CardContent>
+          </Card>
+        </SectionErrorBoundary>
 
         {/* Patch Panel */}
         {showPatchPanel && (

@@ -1,8 +1,8 @@
-# bugLet 🔍
+# AutoBlackBox Pro 🔍
 
-**AI-Powered Crash-Resilient Debugging Assistant and generator**
+**AI-Powered Crash-Resilient Debugging Assistant**
 
-bugLet is a sophisticated debugging tool that generates production-ready telemetry code, analyzes performance anomalies, and provides AI-assisted debugging guidance. Built for developers who need to solve complex bugs—even Heisenbugs that disappear when you try to debug them.
+AutoBlackBox Pro is a sophisticated debugging tool that generates production-ready telemetry code, analyzes performance anomalies, and provides AI-assisted debugging guidance. Built for developers who need to solve complex bugs—even Heisenbugs that disappear when you try to debug them.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -18,11 +18,14 @@ bugLet is a sophisticated debugging tool that generates production-ready telemet
 - **Web Search Integration**: Optional Tavily integration for real-time debugging context from the web
 - **Expert System Prompts**: Engineered prompts that guide AI to think like a senior debugging engineer
 
-### 📊 Crash-Resilient Telemetry
-- **Survives Browser Crashes**: All telemetry persists to localStorage before crashes occur
-- **Ring Buffer Architecture**: Prevents memory bloat with configurable buffer sizes
-- **Multiple Telemetry Types**: Memory, FPS, Network, Video playback monitoring
-- **Custom Logging Endpoints**: Send telemetry to your own backend for centralized analysis
+### 📊 Crash-Resilient Telemetry Data Bridge
+- **Real-Time Data Collection**: Collect telemetry from your applications via REST API
+- **Session Management**: Organize telemetry by sessions with device and environment metadata
+- **Offline-First Storage**: Uses IndexedDB for crash-resilient data persistence
+- **Ring Buffer Architecture**: Configurable buffer sizes prevent memory bloat
+- **Blackbox Recorder**: Captures pre-crash data with automatic crash detection
+- **Export & Import**: Download telemetry sessions as JSON for sharing or archival
+- **Visual Analytics**: Charts and graphs for FPS, memory, network, and custom metrics
 
 ### 🎯 Smart Anomaly Detection
 - **Automated Radar Scanning**: Continuously analyzes telemetry for anomalies using LLM
@@ -82,21 +85,50 @@ bugLet is a sophisticated debugging tool that generates production-ready telemet
 5. (Optional) Add Tavily API key for web search capabilities
 6. (Optional) Configure a logging endpoint URL for centralized telemetry
 
-### 3. Generate Your First Snippet
+### 3. Instrument Your Application
 
+**Option A: Generate Debugging Snippet**
 1. Go to the **Generate** tab
 2. Describe your bug (e.g., "Memory leak in video player after 30 minutes")
-3. Click **Generate Debugging Snippet**
-4. Review the generated code and instructions
-5. Copy the code and integrate it into your application
+3. Copy the code and integrate it into your application
 
-### 4. Analyze Telemetry
+**Option B: Use Telemetry Data Bridge**
+1. Add the telemetry collector to your app:
 
-1. After your code runs and collects data, return to AutoBlackBox Pro
-2. Go to the **Logs** tab
-3. View telemetry data with visual charts
-4. Enable **Smart Anomaly Radar** for automatic analysis
-5. Review detected anomalies and recommendations
+\`\`\`javascript
+// In your application
+const sessionId = 'my-app-session-' + Date.now();
+
+async function sendTelemetry(type, data) {
+  await fetch('http://localhost:3000/api/collect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId,
+      type,
+      data,
+      metadata: {
+        userAgent: navigator.userAgent,
+        url: window.location.href
+      }
+    })
+  });
+}
+
+// Collect memory telemetry
+setInterval(() => {
+  if (performance.memory) {
+    sendTelemetry('MEMORY', {
+      usedJSHeapSize: performance.memory.usedJSHeapSize,
+      totalJSHeapSize: performance.memory.totalJSHeapSize,
+      jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+    });
+  }
+}, 5000);
+\`\`\`
+
+2. View collected data in the **Logs** tab under "Telemetry Viewer"
+3. Use the **Blackbox Recorder** for crash-resilient logging
 
 ---
 
@@ -127,52 +159,30 @@ The chat assistant helps you think through complex debugging scenarios:
 3. **Get alternatives**: "My current approach isn't working, what else can I try?"
 4. **Web search**: Enable web search to find solutions from Stack Overflow, GitHub, etc.
 
-### Telemetry Templates
+### Telemetry Data Bridge
 
-AutoBlackBox Pro includes production-ready templates for:
+The telemetry data bridge allows you to collect and analyze data from your applications in real-time:
 
-- **MEMORY**: Heap size, used JS heap, memory limits
-- **FPS**: Frame rate monitoring with performance.now()
-- **NETWORK**: Request timing, payload sizes, error rates
-- **VIDEO**: Playback quality, buffering, dropped frames
-- **LONG_TASKS**: Detect tasks blocking the main thread >50ms
-- **WEB_VITALS**: LCP, FID, CLS, TTFB metrics
-- **WEBGL**: GPU memory, draw calls, shader compilation
-- **WEBSOCKET**: Connection stability, message latency
-- **INDEXEDDB**: Storage usage, transaction performance
-- **SERVICE_WORKER**: Cache hit rates, update cycles
+**Collecting Data:**
+1. Instrument your app with telemetry collection code
+2. Send data to `/api/collect` endpoint
+3. View data in the Telemetry Viewer tab
 
-### AI Code-Patch Loop
+**Session Management:**
+- Each session has a unique ID
+- Sessions include metadata (device, browser, URL)
+- Filter and search across multiple sessions
 
-Automatically generate and test fixes:
+**Blackbox Recorder:**
+- Automatically captures pre-crash data
+- Uses ring buffer to limit memory usage
+- Detects crashes via heartbeat monitoring
+- Preserves last N data points before crash
 
-1. Generate a debugging snippet
-2. Let it collect baseline telemetry
-3. Click **Attempt Fix** when you detect an issue
-4. AI generates a patched version
-5. System tests it in sandbox
-6. Compares before/after metrics
-7. Iterates until improvement is detected
-
-### Regression Guard
-
-Protect against performance degradation:
-
-1. Enable **Regression Guard** in settings
-2. System captures baseline metrics for each snippet
-3. Continuous monitoring compares new data to baseline
-4. Alerts trigger when metrics exceed 2σ threshold
-5. View detailed regression reports in the Regression Guard panel
-
-### Command Palette
-
-Press `Cmd+K` (Mac) or `Ctrl+K` (Windows/Linux) or `/` to open:
-
-- Navigate between tabs instantly
-- Generate snippets without clicking
-- Clear data and reset state
-- Toggle dark mode
-- Access settings quickly
+**Export & Import:**
+- Download sessions as `.buglet-session.json`
+- Share sessions with team members
+- Import sessions for analysis
 
 ---
 
@@ -191,6 +201,7 @@ User Input → AI (Groq/OpenAI) → Code Generation → Sandbox Testing → Tele
 ### Storage Strategy
 
 - **localStorage**: Snippets, settings, chat history, telemetry data, baselines
+- **IndexedDB**: Sessions and data points for offline-first storage
 - **Ring Buffer**: Prevents memory bloat (configurable size)
 - **Crash Resilience**: Data persists before crashes via synchronous localStorage writes
 
@@ -212,182 +223,29 @@ Send telemetry to your own backend:
 \`\`\`javascript
 // Your endpoint should accept POST requests with JSON body:
 {
-  "type": "MEMORY" | "FPS" | "NETWORK" | "VIDEO",
-  "timestamp": 1234567890,
+  "sessionId": "string",
+  "type": "MEMORY" | "FPS" | "NETWORK" | "CUSTOM",
   "data": { /* telemetry data */ }
 }
 \`\`\`
 
 Configure in **Settings → Telemetry Configuration → Logging Endpoint**
 
-### System Prompt Customization
+### Telemetry Data Bridge Configuration
 
-Modify the AI's behavior by editing the system prompt in **Settings → Advanced → System Prompt**
+Configure the telemetry system in **Settings → Telemetry Configuration**:
 
-Default prompt emphasizes:
-- Senior-level debugging expertise
-- Production-ready code generation
-- Comprehensive error handling
-- Performance optimization
-- Edge case coverage
+- **Collection Mode**: Push (REST API), Pull (polling), or Live (WebSocket)
+- **Buffer Size**: Number of data points to keep in memory (default: 1000)
+- **Batch Size**: Number of points to send per request (default: 10)
+- **Flush Interval**: How often to send batched data (default: 5000ms)
+- **Retention Period**: How long to keep old data (default: 7 days)
+- **Privacy Mode**: Anonymize sensitive data before storage
 
-### Temperature & Token Settings
-
-- **Temperature** (0.0-1.0): Lower = more focused, Higher = more creative
-- **Max Tokens**: Longer responses need more tokens (default: 4000)
-
----
-
-## 🎨 Customization
-
-### Dark Mode
-
-Toggle dark mode in settings or use the command palette (`Cmd+K` → "Toggle dark mode")
-
-### Telemetry Buffer Size
-
-Modify ring buffer size in generated code:
-
-\`\`\`javascript
-const MAX_BUFFER_SIZE = 100; // Adjust based on your needs
-\`\`\`
-
-### Anomaly Thresholds
-
-Customize regression detection sensitivity by modifying the 2σ threshold in code.
-
----
-
-## 🧪 Testing Checklist
-
-See [TESTING_CHECKLIST.md](./TESTING_CHECKLIST.md) for comprehensive testing guide.
-
-**Quick smoke test:**
-1. ✅ Generate a snippet
-2. ✅ View it in sandbox
-3. ✅ Send a chat message
-4. ✅ Enable anomaly radar
-5. ✅ Browse marketplace
-6. ✅ Open command palette (`Cmd+K`)
-
----
-
-## 📚 Documentation
-
-- **[Developer Guide](./DEVELOPER_GUIDE.md)**: Extend AutoBlackBox Pro with custom features
-- **[Testing Checklist](./TESTING_CHECKLIST.md)**: Comprehensive testing scenarios
-- **[Future Improvements](./FUTURE_IMPROVEMENTS.md)**: Roadmap and enhancement ideas
-- **[TODO](./TODO.md)**: Development task tracking
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Areas where you can help:
-
-- **New Telemetry Templates**: Add monitoring for new APIs or frameworks
-- **Marketplace Probes**: Share your debugging probes with the community
-- **AI Prompt Engineering**: Improve system prompts for better code generation
-- **UI/UX Improvements**: Enhance the interface and user experience
-- **Documentation**: Help others learn to use AutoBlackBox Pro effectively
-
----
-
-## 🐛 Troubleshooting
-
-### "Nothing happens when I click Generate"
-
-- Check that you've entered a valid API key in Settings
-- Click "Fetch Models" to ensure your model is available
-- Check browser console for error messages
-- Try a different model (some models get decommissioned)
-
-### "Tavily search not working"
-
-- Ensure you've added a Tavily API key in Settings
-- Check that web search is enabled in the chat context options
-- Verify your Tavily API key is valid at [tavily.com](https://tavily.com)
-
-### "Telemetry not persisting"
-
-- Check that localStorage is enabled in your browser
-- Ensure you're not in private/incognito mode
-- Verify the generated code is actually running in your app
-
-### "Regression Guard not detecting issues"
-
-- Ensure you've captured a baseline first (run snippet normally)
-- Check that Regression Guard is enabled in settings
-- Verify telemetry data is being collected properly
-
-### "PWA not installing"
-
-- PWA requires HTTPS (works on localhost for development)
-- Check that service worker registered successfully
-- Try a different browser (Chrome/Edge have best PWA support)
-
----
-
-## 🌟 Use Cases
-
-### Memory Leak Detection
-Generate memory monitoring code, let it run for hours, analyze the trend graphs to identify leaks.
-
-### Performance Regression Testing
-Use Regression Guard to catch performance degradation before it reaches production.
-
-### Intermittent Bug Hunting
-Deploy crash-resilient telemetry to capture data even when bugs cause crashes.
-
-### Mobile Performance Optimization
-Monitor FPS and memory on mobile devices to optimize for lower-end hardware.
-
-### Network Debugging
-Track request timing, payload sizes, and error rates to optimize API calls.
-
-### Video Playback Issues
-Monitor buffering, dropped frames, and playback quality across devices.
-
----
-
-## 📊 Recommended Workflows
-
-### Workflow 1: New Bug Investigation
-1. Describe bug in Generate tab
-2. Copy generated code to your app
-3. Reproduce the bug
-4. Return to Logs tab to analyze telemetry
-5. Enable Anomaly Radar for AI insights
-6. Use Chat to discuss findings with AI
-
-### Workflow 2: Performance Optimization
-1. Generate baseline telemetry for your feature
-2. Enable Regression Guard
-3. Make code changes
-4. Run telemetry again
-5. Check for regression alerts
-6. Use AI Code-Patch Loop if regressions detected
-
-### Workflow 3: Production Monitoring
-1. Generate telemetry with custom logging endpoint
-2. Deploy to production
-3. Monitor centralized logs
-4. Use AutoBlackBox Pro to analyze exported data
-5. Generate fixes with AI Code-Patch Loop
-
----
-
-## 🔮 Future Enhancements
-
-See [FUTURE_IMPROVEMENTS.md](./FUTURE_IMPROVEMENTS.md) for detailed roadmap.
-
-**Highlights:**
-- Real-time collaboration for team debugging
-- Browser extension for injecting telemetry into any site
-- Integration with Sentry, Rollbar, and other error tracking services
-- CI/CD integration for automated regression testing
-- Video recording alongside telemetry capture
-- Performance budgets with automatic alerts
+**Crash-Resilient Blackbox:**
+- **Ring Buffer Size**: Maximum data points before crash (default: 100)
+- **Heartbeat Interval**: How often to check for crashes (default: 1000ms)
+- **Auto-Recovery**: Automatically load pre-crash data on restart
 
 ---
 
