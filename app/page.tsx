@@ -3008,8 +3008,8 @@ Be specific about which metrics changed and by how much.`
               <Zap className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">AutoBlackBox Pro</h1>
-              <p className="text-xs text-muted-foreground">AI-Powered Debugging Assistant</p>
+              <h1 className="text-xl font-bold text-foreground">bugLet</h1>
+              <p className="text-xs text-muted-foreground">AI-Powered DebugScript generation and strategies</p>
             </div>
           </div>
 
@@ -3080,7 +3080,7 @@ Be specific about which metrics changed and by how much.`
               <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Telemetry & Probe System FAQ</DialogTitle>
-                  <DialogDescription>Common questions about using AutoBlackBox Pro for debugging</DialogDescription>
+                  <DialogDescription>Common questions about using bugLet for debugging</DialogDescription>
                 </DialogHeader>
 
                 <Accordion type="single" collapsible className="w-full">
@@ -3259,14 +3259,14 @@ if (encodedProbe) {
                     <AccordionTrigger>Can I use this function in my own project?</AccordionTrigger>
                     <AccordionContent>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Integrating AutoBlackBox probes into your project is straightforward:
+                        Integrating bugLetbes into your project is straightforward:
                       </p>
 
                       <div className="space-y-4">
                         <div>
                           <h4 className="font-semibold text-sm mb-2">Method 1: Direct Integration</h4>
                           <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground ml-4">
-                            <li>Generate your probe in AutoBlackBox Pro</li>
+                            <li>Generate your probe in bugLet</li>
                             <li>Click "Copy Code" or "Export" to get the JavaScript</li>
                             <li>Add the code to your application's entry point (e.g., index.js, app.js)</li>
                             <li>The probe will start monitoring immediately</li>
