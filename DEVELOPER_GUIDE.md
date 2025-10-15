@@ -1,4 +1,4 @@
-# AutoBlackBox Pro - Developer Guide
+# BugLet- Developer Guide
 
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)

@@ -1,4 +1,4 @@
-# AutoBlackBox Pro - Testing Checklist
+# bugLet - Testing Checklist
 
 Use this checklist before deploying or releasing new versions.
 

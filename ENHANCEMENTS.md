@@ -1,6 +1,6 @@
-# Suggested Enhancements for AutoBlackBox Pro
+# Suggested Enhancements for BugLet
 
-This document outlines potential features and improvements that would significantly enhance AutoBlackBox Pro's capabilities and make it even more valuable for developers.
+This document outlines potential features and improvements that would significantly enhance BugLet's capabilities and make it even more valuable for developers.
 
 ---
 

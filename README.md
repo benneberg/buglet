@@ -1,8 +1,8 @@
-# AutoBlackBox Pro 🔍
+# BugLet
 
 **AI-Powered Crash-Resilient Debugging Assistant**
 
-AutoBlackBox Pro is a sophisticated debugging tool that generates production-ready telemetry code, analyzes performance anomalies, and provides AI-assisted debugging guidance. Built for developers who need to solve complex bugs—even Heisenbugs that disappear when you try to debug them.
+BugLet is a sophisticated debugging tool that generates production-ready telemetry code, analyzes performance anomalies, and provides AI-assisted debugging guidance. Built for developers who need to solve complex bugs—even Heisenbugs that disappear when you try to debug them.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)

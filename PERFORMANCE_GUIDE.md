@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers the performance optimizations implemented in AutoBlackBox Pro and best practices for maintaining optimal performance.
+This guide covers the performance optimizations implemented in bugLet and best practices for maintaining optimal performance.
 
 ## Implemented Optimizations
 
