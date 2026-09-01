@@ -45,6 +45,8 @@ import {
   Shield,
   Copy,
   Download,
+  Menu,
+  ChevronRight,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from "@/components/ui/textarea"
@@ -547,6 +549,20 @@ export default function AutoBlackBoxPro() {
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const sandboxRef = useRef<HTMLIFrameElement>(null)
   const [isFaqOpen, setIsFaqOpen] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMobileMenuOpen(false)
+    }
+    document.addEventListener("keydown", handleEscape)
+    return () => document.removeEventListener("keydown", handleEscape)
+  }, [])
+
+  const navigateFromMobile = (tab: string) => {
+    setActiveTab(tab)
+    setIsMobileMenuOpen(false)
+  }
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState("")
@@ -3067,10 +3083,61 @@ Be specific about which metrics changed and by how much.`
           radarEnabled={radarEnabled}
           regressionGuardEnabled={regressionGuardEnabled} // Pass regression guard state to CommandPalette
         />
-      </SectionErrorBoundary>
+  </SectionErrorBoundary>
 
-      {/* Header */}
-      <header className="border-b border-border bg-card">
+  {isMobileMenuOpen && (
+    <div className="fixed inset-0 z-40 md:hidden" role="presentation">
+      <button
+        type="button"
+        aria-label="Close menu"
+        className="absolute inset-0 bg-foreground/20 backdrop-blur-[2px]"
+        onClick={() => setIsMobileMenuOpen(false)}
+      />
+      <aside
+        aria-label="More navigation"
+        className="absolute right-0 top-0 flex h-full w-[min(86vw,22rem)] flex-col border-l border-border/60 bg-background/80 p-6 shadow-2xl backdrop-blur-2xl supports-[backdrop-filter]:bg-background/60"
+      >
+        <div className="flex items-center justify-between border-b border-border/60 pb-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Workspace</p>
+            <h2 className="mt-1 text-lg font-semibold">More tools</h2>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu">
+            <X />
+          </Button>
+        </div>
+        <nav className="flex flex-col gap-2 py-6" aria-label="Secondary navigation">
+          {[
+            ["templates", "Templates", Database],
+            ["settings", "Settings", Settings],
+          ].map(([tab, label, Icon]) => (
+            <Button
+              key={tab as string}
+              variant={activeTab === tab ? "secondary" : "ghost"}
+              className="h-12 justify-between px-4 text-base"
+              onClick={() => navigateFromMobile(tab as string)}
+            >
+              <span className="flex items-center gap-3"><Icon className="size-5" />{label as string}</span>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Button>
+          ))}
+          <Button variant="ghost" className="h-12 justify-start gap-3 px-4 text-base" onClick={() => { setIsFaqOpen(true); setIsMobileMenuOpen(false) }}>
+            <HelpCircle className="size-5" /> FAQ
+          </Button>
+          <Button variant="ghost" className="h-12 justify-start gap-3 px-4 text-base" onClick={() => { setRadarEnabled(!radarEnabled); setIsMobileMenuOpen(false) }}>
+            <Radar className="size-5" /> Radar {radarEnabled ? "ON" : "OFF"}
+          </Button>
+        </nav>
+        <div className="mt-auto rounded-2xl border border-border/60 bg-card/40 p-4 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Quick access</p>
+          <p className="mt-1">Use the command palette for actions and shortcuts.</p>
+        </div>
+      </aside>
+    </div>
+  )}
+
+  {/* Header */}
+  <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
@@ -3083,6 +3150,16 @@ Be specific about which metrics changed and by how much.`
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              <Menu />
+            </Button>
             {/* KEYBOARD SHORTCUT HINT */}
             <div className="hidden md:flex items-center gap-2 mr-4 text-sm text-muted-foreground">
               <kbd className="px-2 py-1 text-xs bg-muted rounded border">⌘K</kbd>
@@ -3492,7 +3569,7 @@ observer.observe(document.body, {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pb-28 md:pb-8">
         {showAnomalyPanel && activeAnomalies.length > 0 && (
           <Card className="mb-6 border-2 border-orange-500/50">
             <CardHeader>
@@ -3645,7 +3722,7 @@ observer.observe(document.body, {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-6">
+          <TabsList className="hidden md:grid w-full grid-cols-6 mb-6">
             <TabsTrigger value="generate" className="flex items-center gap-2">
               <Play className="w-4 h-4" />
               Generate
@@ -4152,7 +4229,7 @@ observer.observe(document.body, {
                     </CardHeader>
                     <CardContent>
                       <pre className="text-sm overflow-x-auto p-2 bg-muted rounded">
-                        {localStorage.getItem("blackbox_memory_log") || "No memory logs found."}
+                        {typeof window !== "undefined" ? localStorage.getItem("blackbox_memory_log") || "No memory logs found." : "No memory logs found."}
                       </pre>
                     </CardContent>
                   </Card>
@@ -4163,7 +4240,7 @@ observer.observe(document.body, {
                     </CardHeader>
                     <CardContent>
                       <pre className="text-sm overflow-x-auto p-2 bg-muted rounded">
-                        {localStorage.getItem("blackbox_fps_log") || "No FPS logs found."}
+                        {typeof window !== "undefined" ? localStorage.getItem("blackbox_fps_log") || "No FPS logs found." : "No FPS logs found."}
                       </pre>
                     </CardContent>
                   </Card>
@@ -4174,7 +4251,7 @@ observer.observe(document.body, {
                     </CardHeader>
                     <CardContent>
                       <pre className="text-sm overflow-x-auto p-2 bg-muted rounded">
-                        {localStorage.getItem("blackbox_network_log") || "No network logs found."}
+                        {typeof window !== "undefined" ? localStorage.getItem("blackbox_network_log") || "No network logs found." : "No network logs found."}
                       </pre>
                     </CardContent>
                   </Card>
@@ -4185,7 +4262,7 @@ observer.observe(document.body, {
                     </CardHeader>
                     <CardContent>
                       <pre className="text-sm overflow-x-auto p-2 bg-muted rounded">
-                        {localStorage.getItem("blackbox_video_log") || "No video logs found."}
+                        {typeof window !== "undefined" ? localStorage.getItem("blackbox_video_log") || "No video logs found." : "No video logs found."}
                       </pre>
                     </CardContent>
                   </Card>
@@ -4340,6 +4417,27 @@ observer.observe(document.body, {
             </SectionErrorBoundary>
           </TabsContent>
         </Tabs>
+
+        <nav aria-label="Primary mobile navigation" className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-around gap-1 rounded-2xl border border-border/60 bg-background/75 p-2 shadow-xl backdrop-blur-2xl supports-[backdrop-filter]:bg-background/55 md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
+          {[
+            ["generate", "Generate", Play],
+            ["chat", "Chat", MessageCircle],
+            ["logs", "Logs", Activity],
+            ["marketplace", "Market", Database],
+          ].map(([tab, label, Icon]) => (
+            <button
+              key={tab as string}
+              type="button"
+              aria-label={label as string}
+              aria-current={activeTab === tab ? "page" : undefined}
+              onClick={() => navigateFromMobile(tab as string)}
+              className={`flex min-h-11 min-w-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-xs font-medium transition-colors ${activeTab === tab ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              <Icon className="size-5" />
+              <span>{label as string}</span>
+            </button>
+          ))}
+        </nav>
 
         {/* Sandbox */}
         <SectionErrorBoundary sectionName="Sandbox">
